@@ -70,9 +70,23 @@ class SysSightAgent:
         })
 
     def collect_metrics(self):
+        # Get primary IP address with robust fallbacks
+        ip_address = "unknown"
+        try:
+            # Preferred: determine outbound interface IP without sending data
+            with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as s:
+                s.connect(("8.8.8.8", 80))
+                ip_address = s.getsockname()[0]
+        except Exception:
+            try:
+                ip_address = socket.gethostbyname(socket.gethostname())
+            except Exception:
+                ip_address = "unknown"
+        
         payload = {
             "hostname": self.hostname,
             "timestamp": datetime.utcnow().isoformat() + "Z", # ISO 8601 format
+            "ip_address": ip_address,
         }
         
         for name, collector_func in self.metric_collectors.items():

@@ -37,6 +37,7 @@ class MetricPayload(BaseModel):
     memory: MemoryInfo
     network: NetworkIO
     process_count: Optional[int] = None
+    ip_address: Optional[str] = None
 
     class Config:
         populate_by_name = True

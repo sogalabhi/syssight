@@ -9,6 +9,7 @@ class Metric(Base):
     id = Column(Integer, primary_key=True, index=True, autoincrement=True)
     timestamp = Column(DateTime(timezone=True), primary_key=True, index=True)
     hostname = Column(String, index=True)
+    ip_address = Column(String, nullable=True)
 
     # We'll store the key metrics needed for graphing.
     cpu_percent = Column(Float)

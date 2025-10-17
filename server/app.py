@@ -9,12 +9,16 @@ from sqlalchemy import text
 from server import models
 from server.database import engine, get_db
 from server.pydantic_models import MetricPayload
+from server import api_routes
 
 # --- FastAPI Application Setup ---
 app = FastAPI(
     title="SysSight Server",
     description="The central server for collecting and managing host metrics."
 )
+
+# Include API routes
+app.include_router(api_routes.router, prefix="/api/v1")
 
 @app.on_event("startup")
 async def on_startup():
@@ -23,6 +27,9 @@ async def on_startup():
     async with engine.begin() as conn:
         # Create all the tables defined in models.py if they don't exist.
         await conn.run_sync(models.Base.metadata.create_all)
+
+        # Ensure new columns exist (safe to run repeatedly)
+        await conn.execute(text("ALTER TABLE public.metrics ADD COLUMN IF NOT EXISTS ip_address VARCHAR;"))
 
         # Ensure PK conforms to Timescale requirement (timestamp in PK)
         await conn.execute(text("""
@@ -86,6 +93,7 @@ async def receive_and_save_metrics(payload: MetricPayload, db: AsyncSession = De
         load_1m=payload.load_average.m1,
         load_5m=payload.load_average.m5,
         load_15m=payload.load_average.m15,
+        ip_address=payload.ip_address,
     )
     
     # Add the new metric to the session and commit it to the database.
