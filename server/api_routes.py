@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text, select, func, desc
-from typing import List, Optional
+from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import time
+import requests
+import math
 
 from .database import get_db
 from . import models
@@ -201,3 +203,90 @@ async def get_historical_metrics(
         "metric_type": metric_type,
         "values": values
     }
+
+# Import agent registry from separate module
+from server.agent_registry import agent_registry
+
+@router.post("/agents/register")
+async def register_agent(registration_data: dict):
+    """
+    Register an agent with its IP address and port.
+    """
+    try:
+        hostname = registration_data.get("hostname")
+        ip_address = registration_data.get("ip_address")
+        port = registration_data.get("port")
+        
+        if not all([hostname, ip_address, port]):
+            raise HTTPException(status_code=400, detail="Missing required fields: hostname, ip_address, port")
+        
+        # Store in registry as "ip:port"
+        agent_registry[hostname] = f"{ip_address}:{port}"
+        
+        return {
+            "status": "success",
+            "message": f"Agent {hostname} registered at {ip_address}:{port}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+@router.get("/hosts/{hostname}/processes")
+async def get_host_processes(
+    hostname: str,
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(10, ge=1, le=100, description="Items per page"),
+    sort_by: str = Query("cpu_percent", description="Sort field"),
+    sort_order: str = Query("desc", description="Sort order (asc/desc)")
+):
+    """
+    Get paginated process list for a specific host.
+    """
+    # Validate sort parameters
+    allowed_sort_fields = {"cpu_percent", "memory_percent", "pid", "name"}
+    if sort_by not in allowed_sort_fields:
+        raise HTTPException(status_code=400, detail=f"Invalid sort_by. Must be one of: {allowed_sort_fields}")
+    
+    if sort_order not in {"asc", "desc"}:
+        raise HTTPException(status_code=400, detail="sort_order must be 'asc' or 'desc'")
+    
+    # Look up agent in registry
+    if hostname not in agent_registry:
+        raise HTTPException(status_code=404, detail=f"Agent '{hostname}' not registered")
+    
+    agent_address = agent_registry[hostname]
+    agent_url = f"http://{agent_address}/processes"
+    
+    try:
+        # Fetch process list from agent
+        response = requests.get(agent_url, timeout=10)
+        response.raise_for_status()
+        processes = response.json()
+        
+        if not isinstance(processes, list):
+            raise HTTPException(status_code=500, detail="Invalid response from agent")
+        
+        # Sort processes
+        reverse = sort_order == "desc"
+        processes.sort(key=lambda x: x.get(sort_by, 0), reverse=reverse)
+        
+        # Calculate pagination
+        total = len(processes)
+        total_pages = math.ceil(total / limit)
+        start = (page - 1) * limit
+        end = start + limit
+        
+        # Get page slice
+        page_processes = processes[start:end]
+        
+        return {
+            "processes": page_processes,
+            "total": total,
+            "page": page,
+            "limit": limit,
+            "total_pages": total_pages
+        }
+        
+    except requests.exceptions.RequestException as e:
+        raise HTTPException(status_code=503, detail=f"Failed to connect to agent: {str(e)}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")

@@ -5,12 +5,16 @@ from fastapi import FastAPI, Depends, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
+from typing import Dict
 
 # Import the new modules we created
 from server import models
 from server.database import engine, get_db
 from server.pydantic_models import MetricPayload
 from server import api_routes
+
+# Import agent registry from separate module
+from server.agent_registry import agent_registry
 
 # --- FastAPI Application Setup ---
 app = FastAPI(
