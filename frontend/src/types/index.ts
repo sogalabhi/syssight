@@ -31,3 +31,18 @@ export interface HistoricalSeries {
   metric: string
   data: HistoricalPoint[]
 }
+
+export interface Process {
+  pid: number
+  name: string
+  cpu_percent: number
+  memory_percent: number
+}
+
+export interface ProcessListResponse {
+  processes: Process[]
+  total: number
+  page: number
+  limit: number
+  total_pages: number
+}

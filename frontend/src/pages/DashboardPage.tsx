@@ -3,6 +3,7 @@ import HostBar from '../components/HostBar'
 import MetricsTable from '../components/MetricsTable'
 import GraphView from '../components/GraphView'
 import GraphFilters from '../components/GraphFilters'
+import ProcessTable from '../components/ProcessTable'
 import { getHosts, getLatestMetrics, getHistoricalMetrics } from '../api/hosts'
 import type { HostSummary, LatestMetrics, HistoricalSeries } from '../types'
 
@@ -115,6 +116,13 @@ export default function DashboardPage() {
         </div>
         <GraphView historicalData={historicalData} from={range.from} to={range.to} />
       </div>
+
+      {/* Process table for selected host */}
+      {selectedHostId && (
+        <div className="space-y-2">
+          <ProcessTable hostId={selectedHostId} />
+        </div>
+      )}
     </div>
   )
 }

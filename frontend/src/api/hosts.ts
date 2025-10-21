@@ -1,5 +1,5 @@
 import apiRequest from './client'
-import type { HostSummary, LatestMetrics, HistoricalSeries } from '../types'
+import type { HostSummary, LatestMetrics, HistoricalSeries, ProcessListResponse } from '../types'
 
 export async function getHosts(): Promise<HostSummary[]> {
   console.log('Fetching hosts from API...')
@@ -55,4 +55,21 @@ export async function getHistoricalMetrics(
       value: value
     }))
   }
+}
+
+export async function getProcesses(
+  hostId: string,
+  page: number = 1,
+  limit: number = 10,
+  sortBy: string = 'cpu_percent',
+  sortOrder: 'asc' | 'desc' = 'desc'
+): Promise<ProcessListResponse> {
+  const params = new URLSearchParams({
+    page: page.toString(),
+    limit: limit.toString(),
+    sort_by: sortBy,
+    sort_order: sortOrder
+  })
+  
+  return apiRequest<ProcessListResponse>(`/api/v1/hosts/${hostId}/processes?${params}`)
 }

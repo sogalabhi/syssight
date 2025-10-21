@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Float, DateTime, BigInteger
+from sqlalchemy import Column, Integer, String, Float, DateTime, BigInteger, Text
 from .database import Base
 
 class Metric(Base):
@@ -20,3 +20,17 @@ class Metric(Base):
     load_1m = Column(Float)
     load_5m = Column(Float)
     load_15m = Column(Float)
+
+class Process(Base):
+    __tablename__ = "processes"
+
+    # Primary key
+    id = Column(Integer, primary_key=True, index=True, autoincrement=True)
+    timestamp = Column(DateTime(timezone=True), primary_key=True, index=True)
+    hostname = Column(String, index=True)
+    
+    # Process information
+    pid = Column(Integer, index=True)
+    name = Column(String)
+    cpu_percent = Column(Float)
+    memory_percent = Column(Float)
