@@ -1,5 +1,5 @@
 from pydantic import BaseModel, Field
-from typing import Optional
+from typing import Optional, List
 from datetime import datetime
 
 
@@ -41,4 +41,46 @@ class MetricPayload(BaseModel):
 
     class Config:
         populate_by_name = True
+
+class AlertPayload(BaseModel):
+    hostname: str
+    metric_name: str
+    metric_value: float
+    threshold_value: float
+    severity: str
+    message: str
+    timestamp: datetime
+
+class ThresholdConfigPayload(BaseModel):
+    hostname: Optional[str] = None
+    metric_name: str
+    operator: str
+    threshold_value: float
+    severity: str
+    enabled: bool = True
+
+class AlertResponse(BaseModel):
+    id: int
+    hostname: str
+    metric_name: str
+    metric_value: float
+    threshold_value: float
+    severity: str
+    status: str
+    message: str
+    triggered_at: datetime
+    resolved_at: Optional[datetime] = None
+    resolved_by: Optional[str] = None
+
+class AlertListResponse(BaseModel):
+    alerts: List[AlertResponse]
+    total: int
+    page: int
+    limit: int
+    total_pages: int
+
+class AlertStatsResponse(BaseModel):
+    active_count: int
+    resolved_count: int
+    by_severity: dict
 

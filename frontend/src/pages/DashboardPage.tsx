@@ -5,7 +5,8 @@ import GraphView from '../components/GraphView'
 import GraphFilters from '../components/GraphFilters'
 import ProcessTable from '../components/ProcessTable'
 import { getHosts, getLatestMetrics, getHistoricalMetrics } from '../api/hosts'
-import type { HostSummary, LatestMetrics, HistoricalSeries } from '../types'
+import { getAlertStats } from '../api/alerts'
+import type { HostSummary, LatestMetrics, HistoricalSeries, AlertStats } from '../types'
 
 export default function DashboardPage() {
   const [hosts, setHosts] = useState<HostSummary[]>([])
@@ -13,6 +14,7 @@ export default function DashboardPage() {
   const [selectedMetric, setSelectedMetric] = useState<string | undefined>(undefined)
   const [latestMetrics, setLatestMetrics] = useState<LatestMetrics | null>(null)
   const [historicalData, setHistoricalData] = useState<HistoricalSeries | null>(null)
+  const [alertStats, setAlertStats] = useState<AlertStats | null>(null)
   const [range, setRange] = useState<{ from: string; to: string }>(() => {
     const now = new Date()
     const to = new Date(now)
@@ -22,7 +24,7 @@ export default function DashboardPage() {
     return { from: fromStr, to: toStr }
   })
 
-  // Fetch hosts on mount
+  // Fetch hosts and alert stats on mount
   useEffect(() => {
     console.log('DashboardPage: Fetching hosts on mount...')
     getHosts()
@@ -33,6 +35,11 @@ export default function DashboardPage() {
       .catch(err => {
         console.error('DashboardPage: Failed to fetch hosts:', err)
       })
+
+    // Fetch alert stats
+    getAlertStats()
+      .then(setAlertStats)
+      .catch(err => console.error('Failed to fetch alert stats:', err))
   }, [])
 
   // Auto-select first host when hosts are loaded
@@ -93,7 +100,21 @@ export default function DashboardPage() {
 
   return (
     <div className="max-w-6xl mx-auto p-4 space-y-4">
-      <h1 className="text-2xl font-semibold">SysSight Dashboard</h1>
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-semibold">SysSight Dashboard</h1>
+        {alertStats && alertStats.active_count > 0 && (
+          <div className="flex items-center space-x-2">
+            <div className="bg-red-100 text-red-800 px-3 py-1 rounded-full text-sm font-medium">
+              {alertStats.active_count} Active Alert{alertStats.active_count !== 1 ? 's' : ''}
+            </div>
+            {alertStats.by_severity.critical > 0 && (
+              <div className="bg-red-600 text-white px-2 py-1 rounded text-xs font-bold">
+                {alertStats.by_severity.critical} Critical
+              </div>
+            )}
+          </div>
+        )}
+      </div>
 
       {/* Host tab bar */}
       <HostBar hosts={hosts} selectedHostId={selectedHostId} onSelect={setSelectedHostId} />

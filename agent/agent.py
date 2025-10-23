@@ -74,6 +74,61 @@ def get_process_list():
     
     return processes
 
+class ThresholdEvaluator:
+    def __init__(self, thresholds):
+        self.thresholds = thresholds  # List of threshold dicts
+        self.sent_alerts = {}  # Track sent alerts to prevent spam
+    
+    def evaluate(self, metrics):
+        """Evaluate metrics against thresholds, return list of violations"""
+        violations = []
+        for threshold in self.thresholds:
+            if self._check_threshold(metrics, threshold):
+                # Create alert key for deduplication
+                alert_key = f"{metrics.get('hostname', 'unknown')}_{threshold['metric_name']}_{threshold['severity']}"
+                
+                # Check if we already sent this alert recently (within 5 minutes)
+                current_time = time.time()
+                if alert_key in self.sent_alerts:
+                    if current_time - self.sent_alerts[alert_key] < 300:  # 5 minutes
+                        continue  # Skip this alert, already sent recently
+                
+                violations.append({
+                    'metric_name': threshold['metric_name'],
+                    'metric_value': metrics.get(threshold['metric_name']),
+                    'threshold_value': threshold['threshold_value'],
+                    'severity': threshold['severity'],
+                    'operator': threshold['operator'],
+                    'alert_key': alert_key
+                })
+                
+                # Track that we sent this alert
+                self.sent_alerts[alert_key] = current_time
+        
+        return violations
+    
+    def _check_threshold(self, metrics, threshold):
+        """Check if a metric violates the threshold"""
+        metric_value = metrics.get(threshold['metric_name'])
+        if metric_value is None:
+            return False
+        
+        operator = threshold['operator']
+        threshold_value = threshold['threshold_value']
+        
+        if operator == '>':
+            return metric_value > threshold_value
+        elif operator == '<':
+            return metric_value < threshold_value
+        elif operator == '>=':
+            return metric_value >= threshold_value
+        elif operator == '<=':
+            return metric_value <= threshold_value
+        elif operator == '==':
+            return metric_value == threshold_value
+        else:
+            return False
+
 class SysSightAgent:
     def __init__(self):
         self.server_url = os.getenv("SYSSIGHT_SERVER_URL", "http://127.0.0.1:8000/metrics")
@@ -102,6 +157,16 @@ class SysSightAgent:
         # Initialize Flask app for process serving
         self.flask_app = Flask(__name__)
         self._setup_flask_routes()
+        
+        # Initialize threshold evaluator with default thresholds
+        self.default_thresholds = [
+            {'metric_name': 'cpu_percent', 'operator': '>', 'threshold_value': 80.0, 'severity': 'warning'},
+            {'metric_name': 'cpu_percent', 'operator': '>', 'threshold_value': 95.0, 'severity': 'critical'},
+            {'metric_name': 'mem_percent_used', 'operator': '>', 'threshold_value': 85.0, 'severity': 'warning'},
+            {'metric_name': 'mem_percent_used', 'operator': '>', 'threshold_value': 95.0, 'severity': 'critical'},
+            {'metric_name': 'disk_percent_used', 'operator': '>', 'threshold_value': 90.0, 'severity': 'warning'},
+        ]
+        self.threshold_evaluator = ThresholdEvaluator(self.default_thresholds)
 
     def _get_ip_address(self):
         """Get the primary IP address with robust fallbacks."""
@@ -157,6 +222,32 @@ class SysSightAgent:
         flask_thread.start()
         print(f"Flask server started on port {self.flask_port}")
 
+    def send_alert(self, violation):
+        """Send alert to server"""
+        try:
+            alert_url = self.server_url.replace('/metrics', '/api/v1/alerts')
+            alert_payload = {
+                "hostname": self.hostname,
+                "metric_name": violation['metric_name'],
+                "metric_value": violation['metric_value'],
+                "threshold_value": violation['threshold_value'],
+                "severity": violation['severity'],
+                "message": f"{violation['metric_name']} is {violation['metric_value']:.1f}% (threshold: {violation['threshold_value']:.1f}%)",
+                "timestamp": datetime.utcnow().isoformat() + "Z"
+            }
+            
+            response = self.session.post(
+                alert_url,
+                data=json.dumps(alert_payload),
+                timeout=5
+            )
+            response.raise_for_status()
+            print(f"Alert sent: {violation['metric_name']} = {violation['metric_value']:.1f}% ({violation['severity']})")
+            return True
+        except Exception as e:
+            print(f"Failed to send alert: {e}", file=sys.stderr)
+            return False
+
     def collect_metrics(self):
         # Get primary IP address with robust fallbacks
         ip_address = "unknown"
@@ -183,6 +274,14 @@ class SysSightAgent:
             except Exception as e:
                 print(f"Error collecting metric '{name}': {e}", file=sys.stderr)
                 payload[name] = None # Report failure for this specific metric.
+
+        # Evaluate thresholds and send alerts
+        try:
+            violations = self.threshold_evaluator.evaluate(payload)
+            for violation in violations:
+                self.send_alert(violation)
+        except Exception as e:
+            print(f"Error evaluating thresholds: {e}", file=sys.stderr)
 
         return payload
 

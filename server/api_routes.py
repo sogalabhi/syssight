@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import text, select, func, desc
+from sqlalchemy import text, select, func, desc, and_
 from typing import List, Optional, Dict
 from datetime import datetime, timedelta
 import time
@@ -9,6 +9,7 @@ import math
 
 from .database import get_db
 from . import models
+from .pydantic_models import AlertPayload, AlertResponse, AlertListResponse, AlertStatsResponse
 
 router = APIRouter()
 
@@ -290,3 +291,163 @@ async def get_host_processes(
         raise HTTPException(status_code=503, detail=f"Failed to connect to agent: {str(e)}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing request: {str(e)}")
+
+# Alert Management Endpoints
+
+@router.post("/alerts")
+async def create_alert(alert: AlertPayload, db: AsyncSession = Depends(get_db)):
+    """
+    Create a new alert. Checks for existing active alerts to prevent duplicates.
+    """
+    # Check for existing active alert with same hostname + metric
+    existing_alert = await db.execute(
+        select(models.Alert).where(
+            and_(
+                models.Alert.hostname == alert.hostname,
+                models.Alert.metric_name == alert.metric_name,
+                models.Alert.status == 'active'
+            )
+        )
+    )
+    existing = existing_alert.scalar_one_or_none()
+    
+    if existing:
+        # Update existing alert timestamp
+        existing.triggered_at = alert.timestamp
+        await db.commit()
+        return {"status": "updated", "alert_id": existing.id}
+    else:
+        # Create new alert
+        new_alert = models.Alert(
+            hostname=alert.hostname,
+            metric_name=alert.metric_name,
+            metric_value=alert.metric_value,
+            threshold_value=alert.threshold_value,
+            severity=alert.severity,
+            message=alert.message,
+            triggered_at=alert.timestamp
+        )
+        db.add(new_alert)
+        await db.commit()
+        await db.refresh(new_alert)
+        return {"status": "created", "alert_id": new_alert.id}
+
+@router.get("/alerts")
+async def list_alerts(
+    hostname: Optional[str] = Query(None, description="Filter by hostname"),
+    status: Optional[str] = Query(None, description="Filter by status (active, resolved, acknowledged)"),
+    severity: Optional[str] = Query(None, description="Filter by severity (info, warning, critical)"),
+    page: int = Query(1, ge=1, description="Page number"),
+    limit: int = Query(50, ge=1, le=100, description="Items per page"),
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    List alerts with optional filtering and pagination.
+    """
+    # Build query with filters
+    query = select(models.Alert)
+    
+    if hostname:
+        query = query.where(models.Alert.hostname == hostname)
+    if status:
+        query = query.where(models.Alert.status == status)
+    if severity:
+        query = query.where(models.Alert.severity == severity)
+    
+    # Get total count
+    count_query = select(func.count()).select_from(query.subquery())
+    total_result = await db.execute(count_query)
+    total = total_result.scalar()
+    
+    # Apply pagination and ordering
+    query = query.order_by(desc(models.Alert.triggered_at))
+    query = query.offset((page - 1) * limit).limit(limit)
+    
+    result = await db.execute(query)
+    alerts = result.scalars().all()
+    
+    # Convert to response format
+    alert_responses = []
+    for alert in alerts:
+        alert_responses.append(AlertResponse(
+            id=alert.id,
+            hostname=alert.hostname,
+            metric_name=alert.metric_name,
+            metric_value=alert.metric_value,
+            threshold_value=alert.threshold_value,
+            severity=alert.severity,
+            status=alert.status,
+            message=alert.message,
+            triggered_at=alert.triggered_at,
+            resolved_at=alert.resolved_at,
+            resolved_by=alert.resolved_by
+        ))
+    
+    total_pages = math.ceil(total / limit) if total > 0 else 1
+    
+    return AlertListResponse(
+        alerts=alert_responses,
+        total=total,
+        page=page,
+        limit=limit,
+        total_pages=total_pages
+    )
+
+@router.patch("/alerts/{alert_id}/resolve")
+async def resolve_alert(alert_id: int, db: AsyncSession = Depends(get_db)):
+    """
+    Mark an alert as resolved.
+    """
+    # Get the alert
+    result = await db.execute(select(models.Alert).where(models.Alert.id == alert_id))
+    alert = result.scalar_one_or_none()
+    
+    if not alert:
+        raise HTTPException(status_code=404, detail="Alert not found")
+    
+    if alert.status == 'resolved':
+        raise HTTPException(status_code=400, detail="Alert already resolved")
+    
+    # Update alert status
+    alert.status = 'resolved'
+    alert.resolved_at = datetime.utcnow()
+    alert.resolved_by = 'system'  # In a real app, this would be the current user
+    
+    await db.commit()
+    return {"status": "success", "message": f"Alert {alert_id} resolved"}
+
+@router.get("/alerts/stats")
+async def get_alert_stats(db: AsyncSession = Depends(get_db)):
+    """
+    Get alert statistics summary.
+    """
+    # Count active alerts
+    active_result = await db.execute(
+        select(func.count()).where(models.Alert.status == 'active')
+    )
+    active_count = active_result.scalar()
+    
+    # Count resolved alerts
+    resolved_result = await db.execute(
+        select(func.count()).where(models.Alert.status == 'resolved')
+    )
+    resolved_count = resolved_result.scalar()
+    
+    # Count by severity
+    severity_result = await db.execute(
+        select(models.Alert.severity, func.count())
+        .where(models.Alert.status == 'active')
+        .group_by(models.Alert.severity)
+    )
+    by_severity = {row[0]: row[1] for row in severity_result.fetchall()}
+    
+    # Ensure all severities are present
+    for severity in ['info', 'warning', 'critical']:
+        if severity not in by_severity:
+            by_severity[severity] = 0
+    
+    return AlertStatsResponse(
+        active_count=active_count,
+        resolved_count=resolved_count,
+        by_severity=by_severity
+    )

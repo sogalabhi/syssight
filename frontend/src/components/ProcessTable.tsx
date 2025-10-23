@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import { getProcesses } from '../api/hosts'
 import type { Process, ProcessListResponse } from '../types'
 

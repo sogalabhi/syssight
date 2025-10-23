@@ -46,3 +46,35 @@ export interface ProcessListResponse {
   limit: number
   total_pages: number
 }
+
+export interface Alert {
+  id: number
+  hostname: string
+  metric_name: string
+  metric_value: number
+  threshold_value: number
+  severity: 'info' | 'warning' | 'critical'
+  status: 'active' | 'resolved' | 'acknowledged'
+  message: string
+  triggered_at: string
+  resolved_at: string | null
+  resolved_by: string | null
+}
+
+export interface AlertListResponse {
+  alerts: Alert[]
+  total: number
+  page: number
+  limit: number
+  total_pages: number
+}
+
+export interface AlertStats {
+  active_count: number
+  resolved_count: number
+  by_severity: {
+    info: number
+    warning: number
+    critical: number
+  }
+}

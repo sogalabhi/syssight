@@ -9,11 +9,26 @@ export class ApiError extends Error {
   }
 }
 
-async function apiRequest<T>(endpoint: string): Promise<T> {
+async function apiRequest<T>(
+  endpoint: string,
+  method: string = 'GET',
+  body?: any
+): Promise<T> {
   const url = `${API_BASE}${endpoint}`
   
+  const options: RequestInit = {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+    }
+  }
+  
+  if (body) {
+    options.body = JSON.stringify(body)
+  }
+  
   try {
-    const response = await fetch(url)
+    const response = await fetch(url, options)
     
     if (!response.ok) {
       throw new ApiError(response.status, `HTTP ${response.status}: ${response.statusText}`)
