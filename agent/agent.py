@@ -87,10 +87,10 @@ class ThresholdEvaluator:
                 # Create alert key for deduplication
                 alert_key = f"{metrics.get('hostname', 'unknown')}_{threshold['metric_name']}_{threshold['severity']}"
                 
-                # Check if we already sent this alert recently (within 5 minutes)
+                # Check if we already sent this alert recently (within 10 seconds)
                 current_time = time.time()
                 if alert_key in self.sent_alerts:
-                    if current_time - self.sent_alerts[alert_key] < 300:  # 5 minutes
+                    if current_time - self.sent_alerts[alert_key] < 10:  # 10 seconds
                         continue  # Skip this alert, already sent recently
                 
                 violations.append({
@@ -142,6 +142,9 @@ class SysSightAgent:
         
         # Track last registration time for periodic re-registration
         self.last_registration_time = 0
+        
+        # Track last threshold fetch time for periodic threshold updates
+        self.last_threshold_fetch_time = 0
 
         self.metric_collectors = {
             "cpu_percent": get_cpu_percent,
@@ -234,6 +237,48 @@ class SysSightAgent:
         flask_thread = threading.Thread(target=run_flask, daemon=True)
         flask_thread.start()
         print(f"Flask server started on port {self.flask_port}")
+    
+    def fetch_thresholds_from_server(self):
+        """
+        Fetch threshold configurations from server and update local thresholds.
+        Fetches every 20 seconds to handle dynamic threshold updates.
+        """
+        current_time = time.time()
+        
+        # Fetch thresholds every 20 seconds
+        if (current_time - self.last_threshold_fetch_time) < 20:
+            return
+        
+        try:
+            thresholds_url = self.server_url.replace('/metrics', '/api/v1/thresholds')
+            response = self.session.get(thresholds_url, timeout=5)
+            response.raise_for_status()
+            
+            data = response.json()
+            thresholds = data.get('thresholds', [])
+            
+            if thresholds:
+                # Convert API format to agent format
+                new_thresholds = []
+                for t in thresholds:
+                    if t.get('enabled', True):  # Only include enabled thresholds
+                        new_thresholds.append({
+                            'metric_name': t['metric_name'],
+                            'operator': t['operator'],
+                            'threshold_value': t['threshold_value'],
+                            'severity': t['severity']
+                        })
+                
+                # Update threshold evaluator with new thresholds
+                self.threshold_evaluator.thresholds = new_thresholds
+                self.last_threshold_fetch_time = current_time
+                print(new_thresholds)
+                print(f"✅ Updated thresholds from server ({len(new_thresholds)} thresholds)")
+                
+        except Exception as e:
+            # Silently fail - keep using existing thresholds
+            if (current_time - self.last_threshold_fetch_time) > 60:  # Only log if it's been a while
+                print(f"⚠️  Could not fetch thresholds from server: {e}", file=sys.stderr)
 
     def send_alert(self, violation):
         """Send alert to server"""
@@ -327,6 +372,9 @@ class SysSightAgent:
                 
                 # Periodic re-registration (every 5 minutes)
                 self.register_with_server()
+                
+                # Fetch threshold updates from server (every 20 seconds)
+                self.fetch_thresholds_from_server()
                 
                 # 1. Collect all metrics.
                 metrics_payload = self.collect_metrics()

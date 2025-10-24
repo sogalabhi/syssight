@@ -84,3 +84,18 @@ class AlertStatsResponse(BaseModel):
     resolved_count: int
     by_severity: dict
 
+# Threshold Configuration Models
+class ThresholdConfigItem(BaseModel):
+    id: Optional[int] = None
+    metric_name: str
+    operator: str
+    threshold_value: float
+    severity: str
+    enabled: bool = True
+    
+class ThresholdConfigResponse(BaseModel):
+    thresholds: List[ThresholdConfigItem]
+    
+class ThresholdConfigUpdate(BaseModel):
+    thresholds: List[ThresholdConfigItem]
+

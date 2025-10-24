@@ -9,7 +9,7 @@ import math
 
 from .database import get_db
 from . import models
-from .pydantic_models import AlertPayload, AlertResponse, AlertListResponse, AlertStatsResponse
+from .pydantic_models import AlertPayload, AlertResponse, AlertListResponse, AlertStatsResponse, ThresholdConfigItem, ThresholdConfigResponse, ThresholdConfigUpdate
 from . import discord_notifier
 
 router = APIRouter()
@@ -495,3 +495,148 @@ async def get_alert_stats(db: AsyncSession = Depends(get_db)):
         resolved_count=resolved_count,
         by_severity=by_severity
     )
+
+# Threshold Configuration Endpoints
+
+# Default thresholds matching agent.py hardcoded defaults
+DEFAULT_THRESHOLDS = [
+    {'metric_name': 'cpu_percent', 'operator': '>', 'threshold_value': 80.0, 'severity': 'warning', 'enabled': True},
+    {'metric_name': 'cpu_percent', 'operator': '>', 'threshold_value': 95.0, 'severity': 'critical', 'enabled': True},
+    {'metric_name': 'mem_percent_used', 'operator': '>', 'threshold_value': 85.0, 'severity': 'warning', 'enabled': True},
+    {'metric_name': 'mem_percent_used', 'operator': '>', 'threshold_value': 95.0, 'severity': 'critical', 'enabled': True},
+    {'metric_name': 'disk_percent_used', 'operator': '>', 'threshold_value': 90.0, 'severity': 'warning', 'enabled': True},
+]
+
+@router.get("/thresholds", response_model=ThresholdConfigResponse)
+async def get_thresholds(db: AsyncSession = Depends(get_db)):
+    """
+    Get all global threshold configurations.
+    Returns hardcoded defaults if database is empty.
+    """
+    # Fetch global thresholds (where hostname IS NULL)
+    result = await db.execute(
+        select(models.ThresholdConfig)
+        .where(models.ThresholdConfig.hostname.is_(None))
+        .order_by(models.ThresholdConfig.id)
+    )
+    thresholds = result.scalars().all()
+    
+    # If no thresholds in database, return defaults
+    if not thresholds:
+        threshold_items = [
+            ThresholdConfigItem(**t) for t in DEFAULT_THRESHOLDS
+        ]
+        return ThresholdConfigResponse(thresholds=threshold_items)
+    
+    # Convert to response format
+    threshold_items = [
+        ThresholdConfigItem(
+            id=t.id,
+            metric_name=t.metric_name,
+            operator=t.operator,
+            threshold_value=t.threshold_value,
+            severity=t.severity,
+            enabled=t.enabled
+        )
+        for t in thresholds
+    ]
+    
+    return ThresholdConfigResponse(thresholds=threshold_items)
+
+@router.put("/thresholds", response_model=ThresholdConfigResponse)
+async def update_thresholds(
+    update: ThresholdConfigUpdate,
+    db: AsyncSession = Depends(get_db)
+):
+    """
+    Update all global threshold configurations.
+    Replaces existing thresholds with new ones.
+    """
+    # Delete existing global thresholds
+    await db.execute(
+        text("DELETE FROM threshold_configs WHERE hostname IS NULL")
+    )
+    
+    # Insert new thresholds
+    new_thresholds = []
+    for threshold in update.thresholds:
+        new_threshold = models.ThresholdConfig(
+            hostname=None,  # Global threshold
+            metric_name=threshold.metric_name,
+            operator=threshold.operator,
+            threshold_value=threshold.threshold_value,
+            severity=threshold.severity,
+            enabled=threshold.enabled,
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        db.add(new_threshold)
+        new_thresholds.append(new_threshold)
+    
+    await db.commit()
+    
+    # Refresh to get IDs
+    for t in new_thresholds:
+        await db.refresh(t)
+    
+    # Return updated thresholds
+    threshold_items = [
+        ThresholdConfigItem(
+            id=t.id,
+            metric_name=t.metric_name,
+            operator=t.operator,
+            threshold_value=t.threshold_value,
+            severity=t.severity,
+            enabled=t.enabled
+        )
+        for t in new_thresholds
+    ]
+    
+    return ThresholdConfigResponse(thresholds=threshold_items)
+
+@router.post("/thresholds/reset", response_model=ThresholdConfigResponse)
+async def reset_thresholds(db: AsyncSession = Depends(get_db)):
+    """
+    Reset global thresholds to hardcoded defaults.
+    """
+    # Delete existing global thresholds
+    await db.execute(
+        text("DELETE FROM threshold_configs WHERE hostname IS NULL")
+    )
+    
+    # Insert default thresholds
+    new_thresholds = []
+    for threshold in DEFAULT_THRESHOLDS:
+        new_threshold = models.ThresholdConfig(
+            hostname=None,
+            metric_name=threshold['metric_name'],
+            operator=threshold['operator'],
+            threshold_value=threshold['threshold_value'],
+            severity=threshold['severity'],
+            enabled=threshold['enabled'],
+            created_at=datetime.utcnow(),
+            updated_at=datetime.utcnow()
+        )
+        db.add(new_threshold)
+        new_thresholds.append(new_threshold)
+    
+    await db.commit()
+    
+    # Refresh to get IDs
+    for t in new_thresholds:
+        await db.refresh(t)
+    
+    # Return default thresholds
+    threshold_items = [
+        ThresholdConfigItem(
+            id=t.id,
+            metric_name=t.metric_name,
+            operator=t.operator,
+            threshold_value=t.threshold_value,
+            severity=t.severity,
+            enabled=t.enabled
+        )
+        for t in new_thresholds
+    ]
+    
+    return ThresholdConfigResponse(thresholds=threshold_items)

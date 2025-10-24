@@ -88,6 +88,43 @@ async def on_startup():
 
         # Convert to hypertable (idempotent)
         await conn.execute(text("SELECT create_hypertable('metrics', 'timestamp', if_not_exists => TRUE);"))
+    
+    # Initialize default thresholds if none exist
+    async with engine.begin() as conn:
+        # Check if global thresholds exist
+        result = await conn.execute(
+            text("SELECT COUNT(*) FROM threshold_configs WHERE hostname IS NULL")
+        )
+        count = result.scalar()
+        
+        if count == 0:
+            print("Initializing default thresholds...")
+            # Insert default thresholds
+            default_thresholds = [
+                ('cpu_percent', '>', 80.0, 'warning', True),
+                ('cpu_percent', '>', 95.0, 'critical', True),
+                ('mem_percent_used', '>', 85.0, 'warning', True),
+                ('mem_percent_used', '>', 95.0, 'critical', True),
+                ('disk_percent_used', '>', 90.0, 'warning', True),
+            ]
+            
+            for metric_name, operator, threshold_value, severity, enabled in default_thresholds:
+                await conn.execute(
+                    text("""
+                        INSERT INTO threshold_configs 
+                        (hostname, metric_name, operator, threshold_value, severity, enabled, created_at, updated_at)
+                        VALUES (NULL, :metric_name, :operator, :threshold_value, :severity, :enabled, NOW(), NOW())
+                    """),
+                    {
+                        'metric_name': metric_name,
+                        'operator': operator,
+                        'threshold_value': threshold_value,
+                        'severity': severity,
+                        'enabled': enabled
+                    }
+                )
+            print("Default thresholds initialized.")
+    
     print("Database initialization complete.")
     
     # Start Discord bot in background

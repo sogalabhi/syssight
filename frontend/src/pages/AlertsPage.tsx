@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import AlertStats from '../components/AlertStats'
 import AlertTable from '../components/AlertTable'
+import ThresholdSettings from '../components/ThresholdSettings'
 
 const AlertsPage: React.FC = () => {
   const [filters, setFilters] = useState({
@@ -39,6 +40,11 @@ const AlertsPage: React.FC = () => {
         {/* Alert Statistics */}
         <div className="mb-8">
           <AlertStats />
+        </div>
+
+        {/* Threshold Configuration */}
+        <div className="mb-8">
+          <ThresholdSettings />
         </div>
 
         {/* Filters */}

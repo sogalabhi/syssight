@@ -141,6 +141,20 @@ Objective: Allow dynamic configuration of resource limits.
   - Configurable via environment variable
   - Graceful fallback if webhook not configured
 
+#### Bonus Phase 2 - Configurable Thresholds
+- **Dynamic threshold configuration**:
+  - Web UI for editing alert thresholds
+  - Global thresholds apply to all hosts
+  - Real-time updates (agents fetch every 20 seconds)
+  - Database-backed configuration
+  - Reset to defaults functionality
+  - 5 configurable thresholds:
+    - CPU warning (default: >80%)
+    - CPU critical (default: >95%)
+    - Memory warning (default: >85%)
+    - Memory critical (default: >95%)
+    - Disk warning (default: >90%)
+
 ---
 
 ## Getting Started
@@ -471,6 +485,60 @@ Alert ID: 1 | Resolved by: system | SysSight Monitoring
 
 ---
 
+## Configurable Thresholds
+
+### Overview
+
+SysSight allows you to dynamically configure alert thresholds through the web interface. Thresholds are stored in the database and automatically synced to all agents every 20 seconds.
+
+### Configuring Thresholds
+
+1. Navigate to the **Alerts** page in the dashboard (http://localhost:5173)
+2. Scroll to the **Threshold Configuration** section
+3. Edit threshold values as needed:
+   - **CPU Usage**: Warning and Critical thresholds
+   - **Memory Usage**: Warning and Critical thresholds  
+   - **Disk Usage**: Warning threshold
+4. Click **Save Changes** to apply
+5. Agents will automatically fetch and apply new thresholds within 20 seconds
+
+### Reset to Defaults
+
+Click the **Reset to Defaults** button to restore all thresholds to their original values:
+- CPU warning: >80%
+- CPU critical: >95%
+- Memory warning: >85%
+- Memory critical: >95%
+- Disk warning: >90%
+
+### API Endpoints
+
+```bash
+# Get current thresholds
+curl http://127.0.0.1:8000/api/v1/thresholds | jq
+
+# Update thresholds
+curl -X PUT http://127.0.0.1:8000/api/v1/thresholds \
+  -H "Content-Type: application/json" \
+  -d '{
+    "thresholds": [
+      {"metric_name": "cpu_percent", "operator": ">", "threshold_value": 75.0, "severity": "warning", "enabled": true}
+    ]
+  }' | jq
+
+# Reset to defaults
+curl -X POST http://127.0.0.1:8000/api/v1/thresholds/reset | jq
+```
+
+### How It Works
+
+1. **Server Initialization**: Default thresholds are inserted into the database on first startup
+2. **Agent Fetching**: Every 20 seconds, agents fetch the latest thresholds from the server
+3. **Threshold Evaluation**: Agents use the fetched thresholds to evaluate metrics and trigger alerts
+4. **Real-time Updates**: Changes made in the UI are immediately available to agents on their next fetch cycle
+
+---
+
 ## API Quick Test
 - Interactive docs: `http://127.0.0.1:8000/docs`
 - List hosts: `GET /api/v1/hosts`
@@ -480,6 +548,9 @@ Alert ID: 1 | Resolved by: system | SysSight Monitoring
 - Get process list: `GET /api/v1/hosts/{hostname}/processes?page=1&limit=10&sort_by=cpu_percent&sort_order=desc`
 - Get alerts: `GET /api/v1/alerts?status=active&severity=critical`
 - Alert stats: `GET /api/v1/alerts/stats`
+- Get thresholds: `GET /api/v1/thresholds`
+- Update thresholds: `PUT /api/v1/thresholds`
+- Reset thresholds: `POST /api/v1/thresholds/reset`
 
 ---
 
@@ -493,6 +564,6 @@ Alert ID: 1 | Resolved by: system | SysSight Monitoring
 | Phase 4 - Process Viewer | Completed |
 | Phase 5 - Alerting System | Completed |
 | Bonus 1 - Outbound Alerts (Discord) | Completed |
-| Bonus 2 - Configurable Thresholds | ⬜ Pending |
+| Bonus 2 - Configurable Thresholds | Completed |
 
 

@@ -78,3 +78,20 @@ export interface AlertStats {
     critical: number
   }
 }
+
+export interface ThresholdConfig {
+  id?: number
+  metric_name: string
+  operator: string
+  threshold_value: number
+  severity: 'info' | 'warning' | 'critical'
+  enabled: boolean
+}
+
+export interface ThresholdConfigResponse {
+  thresholds: ThresholdConfig[]
+}
+
+export interface ThresholdConfigUpdate {
+  thresholds: ThresholdConfig[]
+}
