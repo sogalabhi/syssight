@@ -206,7 +206,7 @@ async def get_historical_metrics(
     }
 
 # Import agent registry from separate module
-from server.agent_registry import agent_registry
+from .agent_registry import agent_registry
 
 @router.post("/agents/register")
 async def register_agent(registration_data: dict):
@@ -224,12 +224,26 @@ async def register_agent(registration_data: dict):
         # Store in registry as "ip:port"
         agent_registry[hostname] = f"{ip_address}:{port}"
         
+        print(f"Agent registered: {hostname} -> {ip_address}:{port}")
+        print(f"Current registry: {agent_registry}")
+        
         return {
             "status": "success",
             "message": f"Agent {hostname} registered at {ip_address}:{port}"
         }
     except Exception as e:
+        print(f"Agent registration failed: {e}")
         raise HTTPException(status_code=500, detail=f"Registration failed: {str(e)}")
+
+@router.get("/agents")
+async def list_agents():
+    """
+    List all registered agents.
+    """
+    return {
+        "agents": agent_registry,
+        "count": len(agent_registry)
+    }
 
 @router.get("/hosts/{hostname}/processes")
 async def get_host_processes(
@@ -252,7 +266,11 @@ async def get_host_processes(
     
     # Look up agent in registry
     if hostname not in agent_registry:
-        raise HTTPException(status_code=404, detail=f"Agent '{hostname}' not registered")
+        print(f"⚠️  Agent '{hostname}' not found in registry. Current agents: {list(agent_registry.keys())}")
+        raise HTTPException(
+            status_code=404, 
+            detail=f"Agent '{hostname}' not registered. Available agents: {list(agent_registry.keys())}"
+        )
     
     agent_address = agent_registry[hostname]
     agent_url = f"http://{agent_address}/processes"

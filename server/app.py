@@ -8,13 +8,13 @@ from sqlalchemy import text
 from typing import Dict
 
 # Import the new modules we created
-from server import models
-from server.database import engine, get_db
-from server.pydantic_models import MetricPayload
-from server import api_routes
+from . import models
+from .database import engine, get_db
+from .pydantic_models import MetricPayload
+from . import api_routes
 
 # Import agent registry from separate module
-from server.agent_registry import agent_registry
+from .agent_registry import agent_registry
 
 # --- FastAPI Application Setup ---
 app = FastAPI(
@@ -121,4 +121,4 @@ async def receive_and_save_metrics(payload: MetricPayload, db: AsyncSession = De
 
 # --- Main Execution ---
 if __name__ == "__main__":
-    uvicorn.run("app:app", host="0.0.0.0", port=5000, reload=True)
+    uvicorn.run("server.app:app", host="0.0.0.0", port=8000, reload=True)
