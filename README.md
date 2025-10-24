@@ -66,52 +66,199 @@ Objective: Allow dynamic configuration of resource limits.
 - Implement per-host or per-process thresholds configurable from the server.
 - Agents periodically fetch updated thresholds and apply them locally.
 
-### Useful Resources
-- Zabbix Documentation: https://www.zabbix.com/documentation/current/manual
-- Prometheus Documentation: https://prometheus.io/docs/introduction/overview/
-- Grafana Documentation: https://grafana.com/docs/grafana/latest/
-- Python psutil: https://psutil.readthedocs.io
-- Linux /proc and /sys docs: https://man7.org/linux/man-pages/man5/proc.5.html
-- WebSockets/SSE: https://developer.mozilla.org/en-US/docs/Web/API/WebSockets_API and https://developer.mozilla.org/en-US/docs/Web/API/Server-sent_events
-- FastAPI: https://fastapi.tiangolo.com/
-- Charting: https://www.chartjs.org/ and https://recharts.org/
-- Alerting guides: https://prometheus.io/docs/alerting/latest/alertmanager/ and https://www.zabbix.com/documentation/current/manual/config/triggers
+---
+
+## Tech Stack
+
+### Backend
+- **FastAPI** - High-performance Python web framework
+- **TimescaleDB** - PostgreSQL-based time-series database
+- **SQLAlchemy** - Async ORM for database operations
+- **Pydantic** - Data validation and settings management
+
+### Agent
+- **Python** - Core language
+- **psutil** - System metrics collection
+- **Flask** - Process server for on-demand data
+- **requests** - HTTP client for metrics pushing
+
+### Frontend
+- **React** + **TypeScript** - UI framework
+- **Vite** - Build tool and dev server
+- **Tailwind CSS** - Utility-first CSS framework
+- **Chart.js** - Chart library for visualizations
+
+---
+
+## Features
+
+### Implemented Features
+
+#### Phase 1 - Agent
+- Collects system metrics (CPU, memory, disk, network, load average)
+- Pushes metrics via HTTP every 10 seconds (configurable)
+- Configurable server URL, auth token, and intervals
+- Minimal resource footprint
+
+#### Phase 2 - Server & Storage
+- FastAPI server receives metrics from multiple agents
+- TimescaleDB stores time-series historical data
+- REST APIs for latest and historical metrics
+- Agent registration system
+
+#### Phase 3 - Dashboard
+- Real-time metrics display with auto-refresh
+- Interactive historical graphs (1h, 6h, 24h, custom ranges)
+- Multi-host support with host selection
+- Beautiful, responsive UI with Tailwind CSS
+- Live status indicators (online/offline)
+
+#### Phase 4 - Process Viewer
+- On-demand process list fetching (not persisted)
+- Paginated process table (10, 20, 50 items per page)
+- Sortable by CPU%, memory%, PID, name
+- Real-time process data from agents
+
+#### Phase 5 - Alerting System
+- **Agent-side threshold detection**:
+  - CPU: >80% warning, >95% critical
+  - Memory: >85% warning, >95% critical
+  - Disk: >90% warning
+- **Alert deduplication** (5-minute cooldown)
+- **Server-side alert persistence** with status tracking
+- **Dashboard alert management**:
+  - Alert statistics dashboard
+  - Color-coded severity badges (red=critical, yellow=warning, blue=info)
+  - Filter by hostname, status, severity
+  - Resolve alerts functionality
+  - Alert history tracking
 
 ---
 
 ## Getting Started
 
-### Server (FastAPI + TimescaleDB/PostgreSQL)
-From the repository root:
+### Prerequisites
+
+1. **Docker** - For TimescaleDB database
+2. **Python 3.8+** - For server and agent
+3. **Node.js 16+** - For frontend dashboard
+4. **stress** tool (optional) - For testing alerts
+
+## Quick Start
+
+If you've already set up the virtual environments and installed dependencies, use these commands:
+
 ```bash
-cd server
-python3 -m venv .venv
+# 1. Start Database
+docker start syssight-timescale
+# OR if you need to create it:
+# docker run -d --name syssight-timescale -p 5432:5432 -e POSTGRES_PASSWORD=password timescale/timescaledb:latest-pg16
+
+# 2. Start Server (in terminal 1)
+cd /home/sogalabhi/coding/wec-task/syssight/server
 source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-
-# Set your DB connection (TimescaleDB/PostgreSQL)
-export DATABASE_URL=postgresql+asyncpg://postgres:password@localhost:5432/postgres
-
-# Run the server from the REPO ROOT so imports resolve (note the path)
 cd ..
 uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
+
+# 3. Start Agent (in terminal 2) - run on each host
+cd /home/sogalabhi/coding/wec-task/syssight/agent
+source venv/bin/activate
+python agent.py
+
+# 4. Start Frontend (in terminal 3)
+cd /home/sogalabhi/coding/wec-task/syssight/frontend
+npm run dev
 ```
 
-### Agent (Linux metrics pusher)
-In a separate terminal:
+**Access the application:**
+- Frontend: http://localhost:5173
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+
+---
+
+## Testing the Alert System
+
+### Alert Thresholds (Default)
+
+The agent monitors the following thresholds:
+- **CPU**: >80% (warning), >95% (critical)
+- **Memory**: >85% (warning), >95% (critical)
+- **Disk**: >90% (warning)
+
+### CPU Stress Test
+
+#### Install stress tool (if not already installed):
 ```bash
-cd agent
-python3 -m venv .venv
-source .venv/bin/activate
-pip install --upgrade pip
-pip install -r requirements.txt
-
-export SYSSIGHT_SERVER_URL=http://127.0.0.1:8000/metrics
-export SYSSIGHT_AUTH_TOKEN=your_secret_auth_token
-
-python3 agent.py
+sudo apt-get install stress
 ```
+
+#### Trigger CPU alerts:
+```bash
+# Stress all CPU cores for 60 seconds
+stress --cpu $(nproc) --timeout 60s ## nproc = 16 in my case
+
+# Check number of cores
+nproc
+```
+
+**What happens:**
+1. CPU usage will spike to ~95-100%
+2. Agent detects threshold violation (>80% warning, >95% critical)
+3. Agent sends alerts to server
+4. Dashboard shows alert badges and notifications
+5. Alerts appear in the Alerts page
+
+
+### Verify Alerts
+
+#### 1. Check Agent Output
+You'll see:
+```
+Alert sent: cpu_percent = 97.5% (critical)
+Alert sent: mem_percent_used = 87.2% (warning)
+```
+
+#### 2. Check Server Logs
+You'll see:
+```
+Agent registered: sogalabhi -> 127.0.0.1:9090
+INFO: 127.0.0.1:xxxxx - "POST /api/v1/alerts HTTP/1.1" 201 Created
+```
+
+#### 3. View in Dashboard
+1. Navigate to **http://localhost:5173**
+2. Dashboard page shows **alert badge** (e.g., "2 Active Alerts")
+3. Click **"Alerts"** tab to see:
+   - Alert statistics (active/resolved counts)
+   - Alert table with color-coded severity
+   - Filter by hostname, status, severity
+   - **Resolve** button for active alerts
+
+#### 4. Check via API
+```bash
+# Get all alerts
+curl http://127.0.0.1:8000/api/v1/alerts | jq
+
+# Get alert statistics
+curl http://127.0.0.1:8000/api/v1/alerts/stats | jq
+
+# Get only active alerts
+curl "http://127.0.0.1:8000/api/v1/alerts?status=active" | jq
+
+# Get critical alerts only
+curl "http://127.0.0.1:8000/api/v1/alerts?severity=critical" | jq
+
+# Resolve an alert
+curl -X PATCH http://127.0.0.1:8000/api/v1/alerts/1/resolve | jq
+```
+
+### Alert Deduplication
+
+The agent prevents spam by:
+- Not sending duplicate alerts within **5 minutes**
+- Using alert key: `{hostname}_{metric}_{severity}`
+- Example: Same CPU warning won't be sent twice within 5 minutes
 
 ---
 
@@ -119,10 +266,11 @@ python3 agent.py
 - Interactive docs: `http://127.0.0.1:8000/docs`
 - List hosts: `GET /api/v1/hosts`
 - Latest metrics: `GET /api/v1/hosts/{host_id}/metrics/latest`
-- Historical metrics (example):
-```
-GET /api/v1/hosts/{host_id}/metrics/historical/cpu_percent?start_time=2025-10-18T12:00:00Z&end_time=2025-10-18T13:00:00Z&step=1m
-```
+- Historical metrics (example):`GET /api/v1/hosts/{host_id}/metrics/historical/cpu_percent?start_time=2025-10-18T12:00:00Z&end_time=2025-10-18T13:00:00Z&step=1m`
+- List registered agents: `GET /api/v1/agents`
+- Get process list: `GET /api/v1/hosts/{hostname}/processes?page=1&limit=10&sort_by=cpu_percent&sort_order=desc`
+- Get alerts: `GET /api/v1/alerts?status=active&severity=critical`
+- Alert stats: `GET /api/v1/alerts/stats`
 
 ---
 
@@ -133,8 +281,8 @@ GET /api/v1/hosts/{host_id}/metrics/historical/cpu_percent?start_time=2025-10-18
 | Phase 1 - Agent | Completed |
 | Phase 2 - Server & Storage | Completed |
 | Phase 3 - Dashboard | Completed |
-| Phase 4 - Process Viewer | ⬜ Pending |
-| Phase 5 - Alerting System | ⬜ Pending |
+| Phase 4 - Process Viewer | Completed |
+| Phase 5 - Alerting System | Completed |
 | Bonus 1 - Outbound Alerts | ⬜ Pending |
 | Bonus 2 - Configurable Thresholds | ⬜ Pending |
 
