@@ -2,6 +2,9 @@
 
 A distributed system monitoring solution with real-time metrics, alerting, and Discord notifications.
 
+### Demo Video
+https://drive.google.com/file/d/19mqFjbhBrghrIJcMFxcmGHI4u8wZWqrY/view?usp=sharing
+
 ### Tech Stack
 - **Backend**: FastAPI, TimescaleDB, SQLAlchemy, Pydantic
 - **Agent**: Python, psutil, Flask
