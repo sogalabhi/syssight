@@ -1,560 +1,212 @@
 ## SysSight — Linux Task Manager
 
-Task ID: SysSight
+A distributed system monitoring solution with real-time metrics, alerting, and Discord notifications.
 
-Domains: Systems Development, Web Development, Linux
-
-Mentors: Shanjiv A (+91 8050030224), Suyash (+91 8583905686), Vatsal Jay Gandhi (+91 9409814992)
-
-Difficulty: Expert
-
-This is a GDG x Systems Task.
-
-### Description
-
-Build a Linux Task Manager with the following features:
-- Each host runs a lightweight agent that continuously pushes system metrics (CPU, memory, disk, network, load average) to a central server.
-- The central server stores historical metrics to generate charts over time.
-- The dashboard shows real-time host metrics and allows users to fetch paginated process lists on demand (these lists are not stored).
-- Implement an alerting system that alerts exceeding configurable resource thresholds and maintains an alert history that can be marked resolved.
-- You can use any tech stack. No restrictions.
-
-### Phases
-
-#### Phase 1 - Linux Agent on the Host
-Objective: Implement a Linux agent that continuously pushes host metrics.
-- Collect system metrics periodically (CPU, memory, disk, network, load average).
-- Push metrics continuously to the central server (HTTP or WebSocket).
-- Ensure minimal CPU and network usage.
-- Configurable push interval, server URL, and authentication.
-
-#### Phase 2 - Central Server Setup & Metrics Storage
-Objective: Set up a server to ingest and store metrics.
-- Implement a server to receive metrics from multiple agents.
-- Store historical metrics (time-series) for graphing.
-- Expose APIs for:
-  - Latest metrics per host.
-  - Historical metrics for graphs over configurable time ranges.
-
-#### Phase 3 - Frontend Dashboard & Graphs
-Objective: Visualize live and historical metrics.
-- Build a dashboard displaying each host’s metrics in real time.
-- Show historical graphs for CPU, memory, disk, and network usage.
-- Auto-refresh latest metrics for live updates.
-- Include host selection to view individual metric graphs.
-
-#### Phase 4 - On-Demand Paginated Process Viewer
-Objective: Enable fetching and viewing current processes on demand.
-- Agent gathers running processes (pid, name, cpu%, mem%) only when requested.
-- Server exposes an API to request process lists for a host with pagination.
-- Process lists are not persisted, only relayed to the dashboard.
-
-#### Phase 5 - Alerting System
-Objective: Generate and manage alerts.
-- Agents detect exceeding host resource thresholds.
-- Alerts are sent to the server containing host, metric, metric value, and timestamp.
-- Server persists alerts with resolved/unresolved status.
-- Dashboard allows viewing, resolving, and tracking alert history.
-
-#### Bonus Phase 1 - Send Out Alerts
-Objective: Send out alerts on email, Discord, etc.
-- Send alerts as email/Discord/other notifications.
-- When resolved, send a resolution notification as well.
-
-#### Bonus Phase 2 - Configurable Thresholds
-Objective: Allow dynamic configuration of resource limits.
-- Implement per-host or per-process thresholds configurable from the server.
-- Agents periodically fetch updated thresholds and apply them locally.
-
----
-
-## Tech Stack
-
-### Backend
-- **FastAPI** - High-performance Python web framework
-- **TimescaleDB** - PostgreSQL-based time-series database
-- **SQLAlchemy** - Async ORM for database operations
-- **Pydantic** - Data validation and settings management
-
-### Agent
-- **Python** - Core language
-- **psutil** - System metrics collection
-- **Flask** - Process server for on-demand data
-- **requests** - HTTP client for metrics pushing
-
-### Frontend
-- **React** + **TypeScript** - UI framework
-- **Vite** - Build tool and dev server
-- **Tailwind CSS** - Utility-first CSS framework
-- **Chart.js** - Chart library for visualizations
+### Tech Stack
+- **Backend**: FastAPI, TimescaleDB, SQLAlchemy, Pydantic
+- **Agent**: Python, psutil, Flask
+- **Frontend**: React + TypeScript, Vite, Tailwind CSS, Chart.js
 
 ---
 
 ## Features
 
-### Implemented Features
+### Core Functionality
+- **Agent**: Collects system metrics (CPU, memory, disk, network, load) every 10s
+- **Server**: TimescaleDB time-series storage with REST APIs
+- **Dashboard**: Real-time metrics display with interactive historical graphs
+- **Process Viewer**: On-demand paginated process lists (sortable, not persisted)
+- **Alerting**: Threshold detection, persistence, and management UI
+- **Discord Notifications**: Rich embed alerts with color coding
+- **Configurable Thresholds**: Web UI for dynamic threshold management (updates every 20s)
 
-#### Phase 1 - Agent
-- Collects system metrics (CPU, memory, disk, network, load average)
-- Pushes metrics via HTTP every 10 seconds (configurable)
-- Configurable server URL, auth token, and intervals
-- Minimal resource footprint
-
-#### Phase 2 - Server & Storage
-- FastAPI server receives metrics from multiple agents
-- TimescaleDB stores time-series historical data
-- REST APIs for latest and historical metrics
-- Agent registration system
-
-#### Phase 3 - Dashboard
-- Real-time metrics display with auto-refresh
-- Interactive historical graphs (1h, 6h, 24h, custom ranges)
-- Multi-host support with host selection
-- Beautiful, responsive UI with Tailwind CSS
-- Live status indicators (online/offline)
-
-#### Phase 4 - Process Viewer
-- On-demand process list fetching (not persisted)
-- Paginated process table (10, 20, 50 items per page)
-- Sortable by CPU%, memory%, PID, name
-- Real-time process data from agents
-
-#### Phase 5 - Alerting System
-- **Agent-side threshold detection**:
-  - CPU: >80% warning, >95% critical
-  - Memory: >85% warning, >95% critical
-  - Disk: >90% warning
-- **Alert deduplication** (5-minute cooldown)
-- **Server-side alert persistence** with status tracking
-- **Dashboard alert management**:
-  - Alert statistics dashboard
-  - Color-coded severity badges (red=critical, yellow=warning, blue=info)
-  - Filter by hostname, status, severity
-  - Resolve alerts functionality
-  - Alert history tracking
-
-#### Bonus Phase 1 - Discord Notifications
-- **Real-time Discord webhook notifications**:
-  - Rich embed formatting with color coding
-  - Alert triggered notifications with full details
-  - Alert resolution notifications with duration
-  - Configurable via environment variable
-  - Graceful fallback if webhook not configured
-
-#### Bonus Phase 2 - Configurable Thresholds
-- **Dynamic threshold configuration**:
-  - Web UI for editing alert thresholds
-  - Global thresholds apply to all hosts
-  - Real-time updates (agents fetch every 20 seconds)
-  - Database-backed configuration
-  - Reset to defaults functionality
-  - 5 configurable thresholds:
-    - CPU warning (default: >80%)
-    - CPU critical (default: >95%)
-    - Memory warning (default: >85%)
-    - Memory critical (default: >95%)
-    - Disk warning (default: >90%)
+### Default Thresholds
+- CPU: >80% warning, >95% critical
+- Memory: >85% warning, >95% critical  
+- Disk: >90% warning
 
 ---
-
-## Getting Started
-
-### Prerequisites
-
-1. **Docker** - For TimescaleDB database
-2. **Python 3.8+** - For server and agent
-3. **Node.js 16+** - For frontend dashboard
-4. **stress** tool (optional) - For testing alerts
 
 ## Quick Start
 
-If you've already set up the virtual environments and installed dependencies, use these commands:
+### Prerequisites
+- Docker (TimescaleDB)
+- Python 3.8+
+- Node.js 16+
+
+### Setup & Run
 
 ```bash
-# 1. Start Database
-docker start syssight-timescale
-# OR if you need to create it:
-# docker run -d --name syssight-timescale -p 5432:5432 -e POSTGRES_PASSWORD=password timescale/timescaledb:latest-pg16
+# 1. Database
+docker run -d --name syssight-timescale -p 5432:5432 \
+  -e POSTGRES_PASSWORD=password timescale/timescaledb:latest-pg16
 
-# 2. Start Server (in terminal 1)
-cd /home/sogalabhi/coding/wec-task/syssight/server
-source .venv/bin/activate
-cd ..
-uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
+# 2. Server (terminal 1)
+cd server
+python3 -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+cd .. && uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
 
-# 3. Start Agent (in terminal 2) - run on each host
-cd /home/sogalabhi/coding/wec-task/syssight/agent
-source venv/bin/activate
+# 3. Agent (terminal 2)
+cd agent
+python3 -m venv venv && source venv/bin/activate
+pip install -r requirements.txt
 python agent.py
 
-# 4. Start Frontend (in terminal 3)
-cd /home/sogalabhi/coding/wec-task/syssight/frontend
-npm run dev
+# 4. Frontend (terminal 3)
+cd frontend
+npm install && npm run dev
 ```
 
-**Access the application:**
-- Frontend: http://localhost:5173
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+**Access**: http://localhost:5173 (Frontend) | http://localhost:8000/docs (API)
 
-**Agent Registration:**
+### Quick Restart (if already setup)
 
-The agent automatically registers with the server when it starts. You should see:
-```
-Registered with server: sogalabhi -> 127.0.0.1:9090
-```
-
-The agent re-registers every 5 minutes to handle server restarts. To verify registration:
 ```bash
-# Check registered agents
-curl http://127.0.0.1:8000/api/v1/agents
-
-# Test process viewer (requires registered agent)
-curl http://127.0.0.1:8000/api/v1/hosts/sogalabhi/processes?page=1&limit=5
-```
-
-**Important Notes:**
-- The agent registry is stored in **memory** (not database)
-- If you restart the **server**, agents will automatically re-register within 5 minutes
-- If you restart the **agent**, it registers immediately on startup
-- Process viewer requires agent registration to fetch live process data
-
----
-
-## Testing the Alert System
-
-### Alert Thresholds (Default)
-
-The agent monitors the following thresholds:
-- **CPU**: >80% (warning), >95% (critical)
-- **Memory**: >85% (warning), >95% (critical)
-- **Disk**: >90% (warning)
-
-### CPU Stress Test
-
-#### Install stress tool (if not already installed):
-```bash
-sudo apt-get install stress
-```
-
-#### Trigger CPU alerts:
-```bash
-# Stress all CPU cores for 60 seconds
-stress --cpu 16 --timeout 60s ## nproc = 16 in my case
-
-# Check number of cores
-nproc
-```
-
-**What happens:**
-1. CPU usage will spike to ~95-100%
-2. Agent detects threshold violation (>80% warning, >95% critical)
-3. Agent sends alerts to server
-4. Dashboard shows alert badges and notifications
-5. Alerts appear in the Alerts page
-
-
-### Verify Alerts
-
-#### 1. Check Agent Output
-You'll see:
-```
-Alert sent: cpu_percent = 97.5% (critical)
-Alert sent: mem_percent_used = 87.2% (warning)
-```
-
-#### 2. Check Server Logs
-You'll see:
-```
-Agent registered: sogalabhi -> 127.0.0.1:9090
-INFO: 127.0.0.1:xxxxx - "POST /api/v1/alerts HTTP/1.1" 201 Created
-```
-
-#### 3. View in Dashboard
-1. Navigate to **http://localhost:5173**
-2. Dashboard page shows **alert badge** (e.g., "2 Active Alerts")
-3. Click **"Alerts"** tab to see:
-   - Alert statistics (active/resolved counts)
-   - Alert table with color-coded severity
-   - Filter by hostname, status, severity
-   - **Resolve** button for active alerts
-
-#### 4. Check via API
-```bash
-# Get all alerts
-curl http://127.0.0.1:8000/api/v1/alerts | jq
-
-# Get alert statistics
-curl http://127.0.0.1:8000/api/v1/alerts/stats | jq
-
-# Get only active alerts
-curl "http://127.0.0.1:8000/api/v1/alerts?status=active" | jq
-
-# Get critical alerts only
-curl "http://127.0.0.1:8000/api/v1/alerts?severity=critical" | jq
-
-# Resolve an alert
-curl -X PATCH http://127.0.0.1:8000/api/v1/alerts/1/resolve | jq
-```
-
-### Alert Deduplication
-
-The agent prevents spam by:
-- Not sending duplicate alerts within **5 minutes**
-- Using alert key: `{hostname}_{metric}_{severity}`
-- Example: Same CPU warning won't be sent twice within 5 minutes
-
----
-
-## Discord Alert Notifications
-
-### Overview
-
-SysSight can send real-time alert notifications to Discord using a Discord bot. When alerts are triggered or resolved, formatted embed messages are automatically posted to your Discord channel.
-
-### Features
-
-- **Rich Embed Formatting**: Color-coded messages based on severity
-  - 🔴 Critical: Red
-  - 🟠 Warning: Orange
-  - 🔵 Info: Blue
-  - 🟢 Resolved: Green
-- **Detailed Information**: Includes hostname, metric name, values, thresholds, and timestamps
-- **Resolution Notifications**: Automatic notifications when alerts are resolved
-- **Duration Tracking**: Shows how long an alert was active
-- **Bot-based Integration**: Uses Discord bot API for reliable message delivery
-
-### Setup Instructions
-
-#### 1. Create a Discord Bot
-
-1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
-2. Click **New Application** and give it a name (e.g., "SysSight Alerts")
-3. Go to the **Bot** section in the left sidebar
-4. Click **Add Bot** (or **Reset Token** if bot already exists)
-5. Click **Copy** to copy your bot token
-6. Under **Privileged Gateway Intents**, you don't need any special intents enabled
-
-#### 2. Invite Bot to Your Server
-
-1. In the Discord Developer Portal, go to **OAuth2** → **URL Generator**
-2. Select scopes: `bot`
-3. Select bot permissions: `Send Messages`, `Embed Links`
-4. Copy the generated URL and open it in your browser
-5. Select your server and authorize the bot
-
-#### 3. Get Your Channel ID
-
-1. In Discord, enable **Developer Mode** (User Settings → Advanced → Developer Mode)
-2. Right-click the channel where you want alerts
-3. Click **Copy Channel ID**
-4. Save this ID (e.g., `1385676035189637231`)
-
-#### 4. Configure Environment Variables
-
-Set the `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` environment variables:
-
-**Option A: Export in terminal (temporary)**
-```bash
-export DISCORD_BOT_TOKEN="your_bot_token_here"
-export DISCORD_CHANNEL_ID="1385676035189637231"
-```
-
-**Option B: Add to .env file (persistent) - RECOMMENDED**
-Create a `.env` file in the project root:
-```bash
-cd /home/sogalabhi/coding/wec-task/syssight
-cat > .env << 'EOF'
-DISCORD_BOT_TOKEN=your_bot_token_here
-DISCORD_CHANNEL_ID=1385676035189637231
-EOF
-```
-
-**Option C: Add to shell profile (system-wide)**
-```bash
-# Add to ~/.bashrc or ~/.zshrc
-echo 'export DISCORD_BOT_TOKEN="your_bot_token_here"' >> ~/.bashrc
-echo 'export DISCORD_CHANNEL_ID="1385676035189637231"' >> ~/.bashrc
-source ~/.bashrc
-```
-
-#### 5. Install Dependencies and Restart the Server
-
-Install the new discord.py dependency:
-```bash
-cd /home/sogalabhi/coding/wec-task/syssight/server
-source .venv/bin/activate
-pip install discord.py==2.4.0
-```
-
-Then restart the server:
-```bash
-cd /home/sogalabhi/coding/wec-task/syssight
+# Terminal 1: Server
+docker start syssight-timescale
+cd server && source .venv/bin/activate && cd ..
 uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
+
+# Terminal 2: Agent
+cd agent && source venv/bin/activate && python agent.py
+
+# Terminal 3: Frontend
+cd frontend && npm run dev
 ```
-
-You should see:
-```
-🤖 Discord bot starting in background...
-Discord bot connected as YourBotName#1234
-Discord channel found: your-channel-name
-```
-
-### Testing Discord Notifications
-
-#### Trigger an Alert
-```bash
-# Stress CPU to trigger alerts
-stress --cpu $(nproc) --timeout 60s
-```
-
-You should see a Discord message like:
-
-```
-🚨 Alert Triggered: CRITICAL
-
-CPU usage on sogalabhi has exceeded threshold
-
-🖥️ Hostname: sogalabhi
-📊 Metric: cpu_percent
-📈 Current Value: 97.50
-⚠️ Threshold: 95.00
-🔴 Severity: CRITICAL
-🕒 Triggered At: 2025-10-24 12:34:56 UTC
-
-Alert ID: 1 | SysSight Monitoring
-```
-
-#### Resolve the Alert
-
-From the dashboard or via API:
-```bash
-curl -X PATCH http://127.0.0.1:8000/api/v1/alerts/1/resolve
-```
-
-You'll receive a resolution notification:
-
-```
-Alert Resolved
-
-Alert for cpu_percent on sogalabhi has been resolved.
-
-🖥️ Hostname: sogalabhi
-📊 Metric: cpu_percent
-🔴 Original Severity: CRITICAL
-🕒 Triggered At: 2025-10-24 12:34:56 UTC
-Resolved At: 2025-10-24 12:40:12 UTC
-⏱️ Duration: 0:05:16
-
-Alert ID: 1 | Resolved by: system | SysSight Monitoring
-```
-
-### Troubleshooting
-
-**No notifications appearing?**
-1. Check server logs for bot connection status:
-   ```
-   🤖 Discord bot starting in background...
-   Discord bot connected as YourBotName#1234
-   Discord channel found: your-channel-name
-   ```
-2. Verify environment variables are set:
-   ```bash
-   echo $DISCORD_BOT_TOKEN
-   echo $DISCORD_CHANNEL_ID
-   ```
-3. Ensure the bot has **Send Messages** and **Embed Links** permissions in the channel
-4. Check if bot is online in your Discord server's member list
-5. Verify the channel ID is correct (right-click channel → Copy Channel ID)
-
-**Bot not connecting?**
-- Check if bot token is valid (tokens expire if reset in Developer Portal)
-- Ensure bot has been invited to your server
-- Check for error messages in server logs:
-  ```
-  ❌ Failed to start Discord bot: Improper token has been passed
-  ```
-
-**Bot connected but no messages?**
-- Verify channel permissions (bot needs "Send Messages" and "Embed Links")
-- Check if the channel ID matches your intended channel
-- Look for messages like:
-  ```
-  ⚠️  Discord bot not ready yet. Skipping notification.
-  ```
 
 ---
 
-## Configurable Thresholds
+## Configuration
 
-### Overview
+### Discord Notifications
 
-SysSight allows you to dynamically configure alert thresholds through the web interface. Thresholds are stored in the database and automatically synced to all agents every 20 seconds.
-
-### Configuring Thresholds
-
-1. Navigate to the **Alerts** page in the dashboard (http://localhost:5173)
-2. Scroll to the **Threshold Configuration** section
-3. Edit threshold values as needed:
-   - **CPU Usage**: Warning and Critical thresholds
-   - **Memory Usage**: Warning and Critical thresholds  
-   - **Disk Usage**: Warning threshold
-4. Click **Save Changes** to apply
-5. Agents will automatically fetch and apply new thresholds within 20 seconds
-
-### Reset to Defaults
-
-Click the **Reset to Defaults** button to restore all thresholds to their original values:
-- CPU warning: >80%
-- CPU critical: >95%
-- Memory warning: >85%
-- Memory critical: >95%
-- Disk warning: >90%
-
-### API Endpoints
-
+Create `.env` in project root:
 ```bash
-# Get current thresholds
-curl http://127.0.0.1:8000/api/v1/thresholds | jq
+DISCORD_BOT_TOKEN=your_bot_token_here
+DISCORD_CHANNEL_ID=your_channel_id_here
+SYSSIGHT_AUTH_TOKEN=your_secret_auth_token
+```
 
-# Update thresholds
-curl -X PUT http://127.0.0.1:8000/api/v1/thresholds \
-  -H "Content-Type: application/json" \
-  -d '{
-    "thresholds": [
-      {"metric_name": "cpu_percent", "operator": ">", "threshold_value": 75.0, "severity": "warning", "enabled": true}
-    ]
-  }' | jq
+**Setup**:
+1. Create bot at https://discord.com/developers/applications
+2. Copy bot token
+3. Invite bot with `Send Messages` and `Embed Links` permissions
+4. Right-click channel → Copy Channel ID (enable Developer Mode)
+5. Restart server
+
+### Configurable Thresholds
+
+1. Navigate to **Alerts** page
+2. Edit threshold values in **Threshold Configuration** section
+3. Click **Save Changes** (agents update within 20s)
+4. Use **Reset to Defaults** to restore original values
+
+**API**:
+```bash
+# Get thresholds
+curl http://127.0.0.1:8000/api/v1/thresholds
 
 # Reset to defaults
-curl -X POST http://127.0.0.1:8000/api/v1/thresholds/reset | jq
+curl -X POST http://127.0.0.1:8000/api/v1/thresholds/reset
 ```
 
-### How It Works
+---
 
-1. **Server Initialization**: Default thresholds are inserted into the database on first startup
-2. **Agent Fetching**: Every 20 seconds, agents fetch the latest thresholds from the server
-3. **Threshold Evaluation**: Agents use the fetched thresholds to evaluate metrics and trigger alerts
-4. **Real-time Updates**: Changes made in the UI are immediately available to agents on their next fetch cycle
+## Testing Alerts
+
+```bash
+# Install stress tool
+sudo apt-get install stress
+
+# Trigger CPU alerts (60 seconds)
+stress --cpu $(nproc) --timeout 60s
+
+# Check alerts
+curl http://127.0.0.1:8000/api/v1/alerts?status=active
+```
+
+**Expected behavior**:
+- Agent logs: `Alert sent: cpu_percent = 95.0% (warning)`
+- Dashboard: Alert badges and notifications
+- Discord: Rich embed notifications (if configured)
 
 ---
 
-## API Quick Test
-- Interactive docs: `http://127.0.0.1:8000/docs`
-- List hosts: `GET /api/v1/hosts`
-- Latest metrics: `GET /api/v1/hosts/{host_id}/metrics/latest`
-- Historical metrics (example):`GET /api/v1/hosts/{host_id}/metrics/historical/cpu_percent?start_time=2025-10-18T12:00:00Z&end_time=2025-10-18T13:00:00Z&step=1m`
-- List registered agents: `GET /api/v1/agents`
-- Get process list: `GET /api/v1/hosts/{hostname}/processes?page=1&limit=10&sort_by=cpu_percent&sort_order=desc`
-- Get alerts: `GET /api/v1/alerts?status=active&severity=critical`
-- Alert stats: `GET /api/v1/alerts/stats`
-- Get thresholds: `GET /api/v1/thresholds`
-- Update thresholds: `PUT /api/v1/thresholds`
-- Reset thresholds: `POST /api/v1/thresholds/reset`
+## API Reference
+
+**Interactive docs**: http://127.0.0.1:8000/docs
+
+### Key Endpoints
+```bash
+# Hosts & Metrics
+GET  /api/v1/hosts
+GET  /api/v1/hosts/{host_id}/metrics/latest
+GET  /api/v1/hosts/{host_id}/metrics/historical/{metric_type}
+
+# Processes
+GET  /api/v1/hosts/{hostname}/processes?page=1&limit=10
+
+# Alerts
+GET  /api/v1/alerts?status=active&severity=critical
+GET  /api/v1/alerts/stats
+PATCH /api/v1/alerts/{alert_id}/resolve
+
+# Thresholds
+GET  /api/v1/thresholds
+PUT  /api/v1/thresholds
+POST /api/v1/thresholds/reset
+
+# Agents
+GET  /api/v1/agents
+POST /api/v1/agents/register
+```
 
 ---
 
-## Progress Summary
+## Agent Registration
+
+Agents automatically register on startup and re-register every 5 minutes.
+
+**Verify registration**:
+```bash
+curl http://127.0.0.1:8000/api/v1/agents
+```
+
+**Note**: Registry is in-memory. Restart server = agents re-register automatically.
+
+---
+
+## Architecture
+
+```
+┌─────────────┐      HTTP/10s     ┌──────────────┐
+│   Agent     │ ────────────────> │    Server    │
+│  (psutil)   │                   │  (FastAPI)   │
+└─────────────┘                   └──────┬───────┘
+                                         │
+                                         ▼
+                                  ┌──────────────┐
+                                  │ TimescaleDB  │
+                                  └──────────────┘
+                                         │
+                                         ▼
+                                  ┌──────────────┐
+                                  │  Dashboard   │
+                                  │ (React + TS) │
+                                  └──────────────┘
+```
+
+**Data Flow**:
+1. Agent collects metrics → POST to server every 10s
+2. Server stores in TimescaleDB (hypertable)
+3. Dashboard fetches via REST APIs
+4. Alerts trigger → Discord notifications
+5. Thresholds configurable via UI → agents fetch every 20s
+
+---
+
+## Project Status
 
 | Phase | Status |
 |---|---|
@@ -563,7 +215,33 @@ curl -X POST http://127.0.0.1:8000/api/v1/thresholds/reset | jq
 | Phase 3 - Dashboard | Completed |
 | Phase 4 - Process Viewer | Completed |
 | Phase 5 - Alerting System | Completed |
-| Bonus 1 - Outbound Alerts (Discord) | Completed |
+| Bonus 1 - Discord Notifications | Completed |
 | Bonus 2 - Configurable Thresholds | Completed |
 
+---
 
+## Development
+
+**Backend**:
+```bash
+cd server
+source .venv/bin/activate
+uvicorn server.app:app --reload
+```
+
+**Frontend**:
+```bash
+cd frontend
+npm run dev
+```
+
+**Agent**:
+```bash
+cd agent
+source venv/bin/activate
+python agent.py
+```
+
+---
+
+Built for WEC Systems Task | GDG x Systems Development
