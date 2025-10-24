@@ -133,6 +133,14 @@ Objective: Allow dynamic configuration of resource limits.
   - Resolve alerts functionality
   - Alert history tracking
 
+#### Bonus Phase 1 - Discord Notifications
+- **Real-time Discord webhook notifications**:
+  - Rich embed formatting with color coding
+  - Alert triggered notifications with full details
+  - Alert resolution notifications with duration
+  - Configurable via environment variable
+  - Graceful fallback if webhook not configured
+
 ---
 
 ## Getting Started
@@ -175,6 +183,28 @@ npm run dev
 - Backend API: http://localhost:8000
 - API Docs: http://localhost:8000/docs
 
+**Agent Registration:**
+
+The agent automatically registers with the server when it starts. You should see:
+```
+Registered with server: sogalabhi -> 127.0.0.1:9090
+```
+
+The agent re-registers every 5 minutes to handle server restarts. To verify registration:
+```bash
+# Check registered agents
+curl http://127.0.0.1:8000/api/v1/agents
+
+# Test process viewer (requires registered agent)
+curl http://127.0.0.1:8000/api/v1/hosts/sogalabhi/processes?page=1&limit=5
+```
+
+**Important Notes:**
+- The agent registry is stored in **memory** (not database)
+- If you restart the **server**, agents will automatically re-register within 5 minutes
+- If you restart the **agent**, it registers immediately on startup
+- Process viewer requires agent registration to fetch live process data
+
 ---
 
 ## Testing the Alert System
@@ -196,7 +226,7 @@ sudo apt-get install stress
 #### Trigger CPU alerts:
 ```bash
 # Stress all CPU cores for 60 seconds
-stress --cpu $(nproc) --timeout 60s ## nproc = 16 in my case
+stress --cpu 16 --timeout 60s ## nproc = 16 in my case
 
 # Check number of cores
 nproc
@@ -262,6 +292,185 @@ The agent prevents spam by:
 
 ---
 
+## Discord Alert Notifications
+
+### Overview
+
+SysSight can send real-time alert notifications to Discord using a Discord bot. When alerts are triggered or resolved, formatted embed messages are automatically posted to your Discord channel.
+
+### Features
+
+- **Rich Embed Formatting**: Color-coded messages based on severity
+  - 🔴 Critical: Red
+  - 🟠 Warning: Orange
+  - 🔵 Info: Blue
+  - 🟢 Resolved: Green
+- **Detailed Information**: Includes hostname, metric name, values, thresholds, and timestamps
+- **Resolution Notifications**: Automatic notifications when alerts are resolved
+- **Duration Tracking**: Shows how long an alert was active
+- **Bot-based Integration**: Uses Discord bot API for reliable message delivery
+
+### Setup Instructions
+
+#### 1. Create a Discord Bot
+
+1. Go to the [Discord Developer Portal](https://discord.com/developers/applications)
+2. Click **New Application** and give it a name (e.g., "SysSight Alerts")
+3. Go to the **Bot** section in the left sidebar
+4. Click **Add Bot** (or **Reset Token** if bot already exists)
+5. Click **Copy** to copy your bot token
+6. Under **Privileged Gateway Intents**, you don't need any special intents enabled
+
+#### 2. Invite Bot to Your Server
+
+1. In the Discord Developer Portal, go to **OAuth2** → **URL Generator**
+2. Select scopes: `bot`
+3. Select bot permissions: `Send Messages`, `Embed Links`
+4. Copy the generated URL and open it in your browser
+5. Select your server and authorize the bot
+
+#### 3. Get Your Channel ID
+
+1. In Discord, enable **Developer Mode** (User Settings → Advanced → Developer Mode)
+2. Right-click the channel where you want alerts
+3. Click **Copy Channel ID**
+4. Save this ID (e.g., `1385676035189637231`)
+
+#### 4. Configure Environment Variables
+
+Set the `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` environment variables:
+
+**Option A: Export in terminal (temporary)**
+```bash
+export DISCORD_BOT_TOKEN="your_bot_token_here"
+export DISCORD_CHANNEL_ID="1385676035189637231"
+```
+
+**Option B: Add to .env file (persistent) - RECOMMENDED**
+Create a `.env` file in the project root:
+```bash
+cd /home/sogalabhi/coding/wec-task/syssight
+cat > .env << 'EOF'
+DISCORD_BOT_TOKEN=your_bot_token_here
+DISCORD_CHANNEL_ID=1385676035189637231
+EOF
+```
+
+**Option C: Add to shell profile (system-wide)**
+```bash
+# Add to ~/.bashrc or ~/.zshrc
+echo 'export DISCORD_BOT_TOKEN="your_bot_token_here"' >> ~/.bashrc
+echo 'export DISCORD_CHANNEL_ID="1385676035189637231"' >> ~/.bashrc
+source ~/.bashrc
+```
+
+#### 5. Install Dependencies and Restart the Server
+
+Install the new discord.py dependency:
+```bash
+cd /home/sogalabhi/coding/wec-task/syssight/server
+source .venv/bin/activate
+pip install discord.py==2.4.0
+```
+
+Then restart the server:
+```bash
+cd /home/sogalabhi/coding/wec-task/syssight
+uvicorn server.app:app --host 0.0.0.0 --port 8000 --reload
+```
+
+You should see:
+```
+🤖 Discord bot starting in background...
+Discord bot connected as YourBotName#1234
+Discord channel found: your-channel-name
+```
+
+### Testing Discord Notifications
+
+#### Trigger an Alert
+```bash
+# Stress CPU to trigger alerts
+stress --cpu $(nproc) --timeout 60s
+```
+
+You should see a Discord message like:
+
+```
+🚨 Alert Triggered: CRITICAL
+
+CPU usage on sogalabhi has exceeded threshold
+
+🖥️ Hostname: sogalabhi
+📊 Metric: cpu_percent
+📈 Current Value: 97.50
+⚠️ Threshold: 95.00
+🔴 Severity: CRITICAL
+🕒 Triggered At: 2025-10-24 12:34:56 UTC
+
+Alert ID: 1 | SysSight Monitoring
+```
+
+#### Resolve the Alert
+
+From the dashboard or via API:
+```bash
+curl -X PATCH http://127.0.0.1:8000/api/v1/alerts/1/resolve
+```
+
+You'll receive a resolution notification:
+
+```
+Alert Resolved
+
+Alert for cpu_percent on sogalabhi has been resolved.
+
+🖥️ Hostname: sogalabhi
+📊 Metric: cpu_percent
+🔴 Original Severity: CRITICAL
+🕒 Triggered At: 2025-10-24 12:34:56 UTC
+Resolved At: 2025-10-24 12:40:12 UTC
+⏱️ Duration: 0:05:16
+
+Alert ID: 1 | Resolved by: system | SysSight Monitoring
+```
+
+### Troubleshooting
+
+**No notifications appearing?**
+1. Check server logs for bot connection status:
+   ```
+   🤖 Discord bot starting in background...
+   Discord bot connected as YourBotName#1234
+   Discord channel found: your-channel-name
+   ```
+2. Verify environment variables are set:
+   ```bash
+   echo $DISCORD_BOT_TOKEN
+   echo $DISCORD_CHANNEL_ID
+   ```
+3. Ensure the bot has **Send Messages** and **Embed Links** permissions in the channel
+4. Check if bot is online in your Discord server's member list
+5. Verify the channel ID is correct (right-click channel → Copy Channel ID)
+
+**Bot not connecting?**
+- Check if bot token is valid (tokens expire if reset in Developer Portal)
+- Ensure bot has been invited to your server
+- Check for error messages in server logs:
+  ```
+  ❌ Failed to start Discord bot: Improper token has been passed
+  ```
+
+**Bot connected but no messages?**
+- Verify channel permissions (bot needs "Send Messages" and "Embed Links")
+- Check if the channel ID matches your intended channel
+- Look for messages like:
+  ```
+  ⚠️  Discord bot not ready yet. Skipping notification.
+  ```
+
+---
+
 ## API Quick Test
 - Interactive docs: `http://127.0.0.1:8000/docs`
 - List hosts: `GET /api/v1/hosts`
@@ -283,7 +492,7 @@ The agent prevents spam by:
 | Phase 3 - Dashboard | Completed |
 | Phase 4 - Process Viewer | Completed |
 | Phase 5 - Alerting System | Completed |
-| Bonus 1 - Outbound Alerts | ⬜ Pending |
+| Bonus 1 - Outbound Alerts (Discord) | Completed |
 | Bonus 2 - Configurable Thresholds | ⬜ Pending |
 
 

@@ -1,11 +1,15 @@
 # in server/app.py
 import os
+from dotenv import load_dotenv
 import uvicorn
 from fastapi import FastAPI, Depends, Header, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import text
 from typing import Dict
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Import the new modules we created
 from . import models
@@ -15,6 +19,9 @@ from . import api_routes
 
 # Import agent registry from separate module
 from .agent_registry import agent_registry
+
+# Import Discord notifier
+from . import discord_notifier
 
 # --- FastAPI Application Setup ---
 app = FastAPI(
@@ -82,6 +89,9 @@ async def on_startup():
         # Convert to hypertable (idempotent)
         await conn.execute(text("SELECT create_hypertable('metrics', 'timestamp', if_not_exists => TRUE);"))
     print("Database initialization complete.")
+    
+    # Start Discord bot in background
+    discord_notifier.start_discord_bot()
 
 # --- Dependency for Authentication ---
 async def verify_token(authorization: str = Header(...)):

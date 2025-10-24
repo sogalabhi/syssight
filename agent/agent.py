@@ -139,6 +139,9 @@ class SysSightAgent:
         
         # Get IP address for agent registration
         self.ip_address = self._get_ip_address()
+        
+        # Track last registration time for periodic re-registration
+        self.last_registration_time = 0
 
         self.metric_collectors = {
             "cpu_percent": get_cpu_percent,
@@ -191,8 +194,17 @@ class SysSightAgent:
             except Exception as e:
                 return jsonify({"error": str(e)}), 500
 
-    def register_with_server(self):
-        """Register this agent with the main server."""
+    def register_with_server(self, force=False):
+        """
+        Register this agent with the main server.
+        Re-registers every 5 minutes to handle server restarts.
+        """
+        current_time = time.time()
+        
+        # Re-register every 5 minutes or if forced
+        if not force and (current_time - self.last_registration_time) < 300:
+            return True
+        
         try:
             registration_url = self.server_url.replace('/metrics', '/api/v1/agents/register')
             registration_data = {
@@ -207,10 +219,11 @@ class SysSightAgent:
                 timeout=5
             )
             response.raise_for_status()
-            print(f"Successfully registered with server: {self.hostname} -> {self.ip_address}:{self.flask_port}")
+            self.last_registration_time = current_time
+            print(f"✅ Registered with server: {self.hostname} -> {self.ip_address}:{self.flask_port}")
             return True
         except Exception as e:
-            print(f"Failed to register with server: {e}", file=sys.stderr)
+            print(f"⚠️  Failed to register with server: {e}", file=sys.stderr)
             return False
 
     def start_flask_server(self):
@@ -277,7 +290,15 @@ class SysSightAgent:
 
         # Evaluate thresholds and send alerts
         try:
-            violations = self.threshold_evaluator.evaluate(payload)
+            # Flatten metrics for threshold evaluation
+            flat_metrics = {
+                'hostname': payload.get('hostname'),
+                'cpu_percent': payload.get('cpu_percent'),
+                'mem_percent_used': payload.get('memory', {}).get('percent_used'),
+                'disk_percent_used': payload.get('disk', {}).get('percent_used'),
+            }
+            
+            violations = self.threshold_evaluator.evaluate(flat_metrics)
             for violation in violations:
                 self.send_alert(violation)
         except Exception as e:
@@ -298,11 +319,14 @@ class SysSightAgent:
         
         # Register with main server
         print("Registering with main server...")
-        self.register_with_server()
+        self.register_with_server(force=True)
 
         while True:
             try:
                 start_time = time.time()
+                
+                # Periodic re-registration (every 5 minutes)
+                self.register_with_server()
                 
                 # 1. Collect all metrics.
                 metrics_payload = self.collect_metrics()

@@ -10,6 +10,7 @@ import math
 from .database import get_db
 from . import models
 from .pydantic_models import AlertPayload, AlertResponse, AlertListResponse, AlertStatsResponse
+from . import discord_notifier
 
 router = APIRouter()
 
@@ -348,6 +349,19 @@ async def create_alert(alert: AlertPayload, db: AsyncSession = Depends(get_db)):
         db.add(new_alert)
         await db.commit()
         await db.refresh(new_alert)
+        
+        # Send Discord notification
+        discord_notifier.send_alert_notification(
+            alert_id=new_alert.id,
+            hostname=new_alert.hostname,
+            metric_name=new_alert.metric_name,
+            metric_value=new_alert.metric_value,
+            threshold_value=new_alert.threshold_value,
+            severity=new_alert.severity,
+            message=new_alert.message,
+            triggered_at=new_alert.triggered_at
+        )
+        
         return {"status": "created", "alert_id": new_alert.id}
 
 @router.get("/alerts")
@@ -432,6 +446,18 @@ async def resolve_alert(alert_id: int, db: AsyncSession = Depends(get_db)):
     alert.resolved_by = 'system'  # In a real app, this would be the current user
     
     await db.commit()
+    
+    # Send Discord resolution notification
+    discord_notifier.send_resolution_notification(
+        alert_id=alert.id,
+        hostname=alert.hostname,
+        metric_name=alert.metric_name,
+        severity=alert.severity,
+        triggered_at=alert.triggered_at,
+        resolved_at=alert.resolved_at,
+        resolved_by=alert.resolved_by
+    )
+    
     return {"status": "success", "message": f"Alert {alert_id} resolved"}
 
 @router.get("/alerts/stats")
