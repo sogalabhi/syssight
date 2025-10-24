@@ -179,23 +179,8 @@ curl http://127.0.0.1:8000/api/v1/agents
 
 ## Architecture
 
-```
-┌─────────────┐      HTTP/10s     ┌──────────────┐
-│   Agent     │ ────────────────> │    Server    │
-│  (psutil)   │                   │  (FastAPI)   │
-└─────────────┘                   └──────┬───────┘
-                                         │
-                                         ▼
-                                  ┌──────────────┐
-                                  │ TimescaleDB  │
-                                  └──────────────┘
-                                         │
-                                         ▼
-                                  ┌──────────────┐
-                                  │  Dashboard   │
-                                  │ (React + TS) │
-                                  └──────────────┘
-```
+<img width="1024" height="699" alt="image" src="https://github.com/user-attachments/assets/ed4657f0-27f9-4d17-bcf3-a1c570bf81c0" />
+
 
 **Data Flow**:
 1. Agent collects metrics → POST to server every 10s
