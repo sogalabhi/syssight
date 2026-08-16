@@ -10,12 +10,12 @@
 
 ```mermaid
 graph LR
-    A["agent.py<br/>collect_metrics()"] -->|HTTP POST /metrics| B["app.py<br/>receive_and_save_metrics()"]
-    B -->|SQLAlchemy INSERT| C["TimescaleDB<br/>metrics hypertable"]
-    A -->|threshold eval<br/>on agent side| D["agent.py<br/>ThresholdEvaluator.evaluate()"]
-    D -->|HTTP POST /api/v1/alerts| E["api_routes.py<br/>create_alert()"]
-    E -->|SQLAlchemy INSERT| F["DB: alerts table"]
-    E -->|discord_notifier.send_alert_notification()| G["discord_notifier.py<br/>Discord Bot → Channel"]
+    A["agent.py: collect_metrics"] -->|"HTTP POST /metrics"| B["app.py: receive_and_save_metrics"]
+    B -->|"SQLAlchemy INSERT"| C["TimescaleDB: metrics hypertable"]
+    A -->|"threshold eval on agent side"| D["agent.py: ThresholdEvaluator.evaluate"]
+    D -->|"HTTP POST /api/v1/alerts"| E["api_routes.py: create_alert"]
+    E -->|"SQLAlchemy INSERT"| F["DB: alerts table"]
+    E -->|"send_alert_notification"| G["discord_notifier.py: Discord Bot"]
 ```
 
 ### Stage 1: Metric Collection (Agent)
